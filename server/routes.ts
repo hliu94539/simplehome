@@ -53,6 +53,7 @@ import {
   runGoogleCalendarTwoWaySync,
   setGoogleCalendarSyncScope,
 } from "./services/googleCalendarSync";
+import { initializeUserDefaultTemplates } from "./services/userTemplateInit";
 import passport from "passport";
 import { requireAuth, hashPassword } from "./auth";
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
@@ -202,6 +203,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const passwordHash = await hashPassword(password);
       const user = await storage.createUser({ email, password, name, passwordHash });
+      await initializeUserDefaultTemplates(user.id, storage);
 
       // Log in immediately after registration
       req.login(user, (err) => {
