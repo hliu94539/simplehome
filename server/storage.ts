@@ -1,6 +1,10 @@
 import fs from "fs";
 import path from "path";
 import { MongoClient, Db, Collection, ObjectId } from "mongodb";
+import {
+  loadDefaultTemplateSeeds,
+  type DefaultTemplateType,
+} from "./services/defaultTemplateLoader";
 import { 
   type PropertyTemplate, 
   type InsertPropertyTemplate,
@@ -186,6 +190,8 @@ export class MongoDBStorage implements IStorage {
       if (templateCount === 0) {
         await this._seedDefaultData();
       }
+
+      await this._backfillUserDefaultTemplates();
       
       this.initialized = true;
     } catch (error) {
@@ -356,6 +362,77 @@ export class MongoDBStorage implements IStorage {
         createdAt: new Date(),
         updatedAt: new Date(),
       });
+    }
+  }
+
+  private async _ensureTemplateTasksForUserType(args: {
+    userId: string;
+    type: DefaultTemplateType;
+    name: string;
+    description: string;
+    tasks: InsertMaintenanceTask[];
+  }): Promise<void> {
+    const { userId, type, name, description, tasks } = args;
+
+    let template = await this.templatesCollection.findOne({ userId, type });
+    if (!template) {
+      const createdTemplate = await this.createPropertyTemplate({
+        userId,
+        type,
+        name,
+        description,
+        taskCount: tasks.length,
+      });
+      template = await this.templatesCollection.findOne({ id: createdTemplate.id });
+    }
+
+    if (!template) {
+      throw new Error(`Failed to resolve template for user ${userId} and type ${type}`);
+    }
+
+    const linkedTaskCount = await this.tasksCollection.countDocuments({
+      userId,
+      templateId: template.id,
+    });
+
+    if (linkedTaskCount > 0) {
+      return;
+    }
+
+    for (const task of tasks) {
+      await this.createMaintenanceTask({ ...task, templateId: template.id }, userId);
+    }
+
+    await this.templatesCollection.updateOne(
+      { id: template.id },
+      { $set: { taskCount: tasks.length } },
+    );
+  }
+
+  private async _backfillUserDefaultTemplates(): Promise<void> {
+    const users = await this.usersCollection
+      .find({}, { projection: { id: 1 } })
+      .toArray();
+
+    if (users.length === 0) {
+      return;
+    }
+
+    const seeds = loadDefaultTemplateSeeds();
+    for (const user of users) {
+      if (!user.id) {
+        continue;
+      }
+
+      for (const seed of seeds) {
+        await this._ensureTemplateTasksForUserType({
+          userId: user.id,
+          type: seed.type,
+          name: seed.name,
+          description: seed.description,
+          tasks: seed.tasks.map(({ task }) => task),
+        });
+      }
     }
   }
 
