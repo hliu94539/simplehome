@@ -350,13 +350,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           const outcome = await disconnectGoogleCalendar(req, { deleteCalendar: true });
           const warning = outcome.calendarDeleteMessage;
+          calendarCleanup.eventsDeleted = outcome.eventsDeleted;
+          calendarCleanup.eventsFailed = outcome.eventsFailed;
           if (warning && warning.trim().length > 0) {
             calendarCleanup = {
               requested: true,
               status: "partial",
-              eventsDeleted: 0,
-              eventsFailed: 0,
+              eventsDeleted: outcome.eventsDeleted,
+              eventsFailed: outcome.eventsFailed,
               warnings: [warning],
+            };
+          } else if (outcome.eventsFailed > 0) {
+            calendarCleanup = {
+              requested: true,
+              status: "partial",
+              eventsDeleted: outcome.eventsDeleted,
+              eventsFailed: outcome.eventsFailed,
             };
           }
         } catch (error: any) {
@@ -364,7 +373,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             requested: true,
             status: "partial",
             eventsDeleted: 0,
-            eventsFailed: 0,
+            eventsFailed: 1,
             warnings: [error?.message || "Calendar cleanup encountered an error"],
           };
         }

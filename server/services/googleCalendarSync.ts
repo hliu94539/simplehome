@@ -63,6 +63,8 @@ type DisconnectGoogleCalendarOutcome = {
   calendarDeleteRequested: boolean;
   calendarDeleted: boolean;
   calendarDeleteMessage: string | null;
+  eventsDeleted: number;
+  eventsFailed: number;
 };
 
 type ScopeRemoval = {
@@ -1341,11 +1343,15 @@ export async function disconnectGoogleCalendar(
       calendarDeleteRequested: !!options.deleteCalendar,
       calendarDeleted: false,
       calendarDeleteMessage: null,
+      eventsDeleted: 0,
+      eventsFailed: 0,
     };
   }
 
   let calendarDeleted = false;
   let calendarDeleteMessage: string | null = null;
+  let eventsDeleted = 0;
+  let eventsFailed = 0;
   const shouldDeleteCalendar = !!options.deleteCalendar;
 
   if (shouldDeleteCalendar) {
@@ -1366,6 +1372,8 @@ export async function disconnectGoogleCalendar(
             calendarDeleted = true;
           } else {
             const cleanup = await removeManagedEventsFromCalendar(calendar, calendarId);
+            eventsDeleted = cleanup.removed;
+            eventsFailed = cleanup.failed;
             if (cleanup.removed > 0 && cleanup.failed > 0) {
               calendarDeleteMessage = `Calendar could not be deleted automatically. Removed ${cleanup.removed} managed event(s), but ${cleanup.failed} event(s) could not be removed.`;
             } else if (cleanup.removed > 0) {
@@ -1401,6 +1409,8 @@ export async function disconnectGoogleCalendar(
     calendarDeleteRequested: shouldDeleteCalendar,
     calendarDeleted,
     calendarDeleteMessage,
+    eventsDeleted,
+    eventsFailed,
   };
 }
 
