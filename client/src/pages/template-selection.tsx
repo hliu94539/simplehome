@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { PropertyTemplate } from "@shared/schema";
+import { PropertyTemplate, User } from "@shared/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Building, Home, Building2, Warehouse, Key, Plus } from "lucide-react";
+import AccountMenu from "@/components/account-menu";
+import { getQueryFn } from "@/lib/queryClient";
 
 const propertyTypeIcons = {
   single_family: Home,
@@ -24,6 +26,13 @@ const propertyTypeImages = {
 export default function TemplateSelection() {
   const { data: templates, isLoading } = useQuery<PropertyTemplate[]>({
     queryKey: ["/api/templates"],
+  });
+
+  const { data: user } = useQuery<User>({
+    queryKey: ["/api/auth/me"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+    staleTime: Infinity,
+    retry: false,
   });
 
   if (isLoading) {
@@ -52,6 +61,11 @@ export default function TemplateSelection() {
                 <Link href="/dashboard" className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm">Dashboard</Link>
               </div>
             </nav>
+            {user && (
+              <div className="flex items-center">
+                <AccountMenu user={user} />
+              </div>
+            )}
           </div>
         </div>
       </header>

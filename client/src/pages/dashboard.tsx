@@ -15,11 +15,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, ClipboardList, Sparkles, Settings } from "lucide-react";
+import { Plus, Search, ClipboardList, Sparkles } from "lucide-react";
 import TaskCard from "@/components/task-card";
 import AddTaskModal from "@/components/add-task-modal";
 import ExportScheduleModal from "@/components/export-schedule-modal";
 import UserSettingsModal from "@/components/user-settings-modal";
+import AccountMenu from "@/components/account-menu";
 import { getQueryFn } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 
@@ -541,15 +542,12 @@ export default function Dashboard() {
               </div>
             </nav>
             <div className="flex items-center space-x-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowSettingsModal(true)}
-                title="User settings"
-                className="text-gray-600 hover:text-gray-900"
-              >
-                <Settings className="w-4 h-4" />
-              </Button>
+              {user && (
+                <AccountMenu
+                  user={user}
+                  onSettingsClick={() => setShowSettingsModal(true)}
+                />
+              )}
               <Button onClick={() => setShowAddTaskModal(true)} className="bg-primary text-white hover:bg-blue-700" title="Add a new custom maintenance item or task">
                 <Plus className="w-4 h-4 mr-2" />
                 Add Item / Task
