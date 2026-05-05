@@ -424,6 +424,13 @@ export class MongoDBStorage implements IStorage {
         continue;
       }
 
+      // Legacy users may have global templates + user-owned tasks but no user-scoped templates.
+      // Use user-owned tasks as the canonical signal that an account is already initialized.
+      const existingUserTaskCount = await this.tasksCollection.countDocuments({ userId: user.id });
+      if (existingUserTaskCount > 0) {
+        continue;
+      }
+
       for (const seed of seeds) {
         await this._ensureTemplateTasksForUserType({
           userId: user.id,
