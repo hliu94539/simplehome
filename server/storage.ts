@@ -35,6 +35,7 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserById(id: string): Promise<User | undefined>;
   updateUserProfile(id: string, updates: { name?: string; timezone?: string | null }): Promise<User | undefined>;
+  updateUserPassword(id: string, passwordHash: string): Promise<boolean>;
 
   // Google Calendar Connections
   getGoogleCalendarConnection(userId: string): Promise<GoogleCalendarConnection | undefined>;
@@ -569,6 +570,11 @@ export class MongoDBStorage implements IStorage {
       timezone: result.timezone ?? null,
       createdAt: new Date(result.createdAt),
     };
+  }
+
+  async updateUserPassword(id: string, passwordHash: string): Promise<boolean> {
+    const result = await this.usersCollection.updateOne({ id }, { $set: { passwordHash } });
+    return result.modifiedCount === 1;
   }
 
   async getPropertyTemplates(userId?: string | null): Promise<PropertyTemplate[]> {

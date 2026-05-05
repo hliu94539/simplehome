@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { User } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,8 +30,15 @@ interface AccountMenuProps {
 
 export default function AccountMenu({ user, onSettingsClick }: AccountMenuProps) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+
+  // Change password form state
+  const [cpCurrent, setCpCurrent] = useState("");
+  const [cpNew, setCpNew] = useState("");
+  const [cpConfirm, setCpConfirm] = useState("");
+  const [cpLoading, setCpLoading] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -43,6 +51,30 @@ export default function AccountMenu({ user, onSettingsClick }: AccountMenuProps)
     // the next session.
     queryClient.setQueryData(["/api/auth/me"], null);
     queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== "/api/auth/me" });
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (cpNew !== cpConfirm) {
+      toast({ title: "Passwords don't match", description: "New password and confirmation must be identical.", variant: "destructive" });
+      return;
+    }
+    if (cpNew.length < 8) {
+      toast({ title: "Password too short", description: "New password must be at least 8 characters.", variant: "destructive" });
+      return;
+    }
+    setCpLoading(true);
+    try {
+      await apiRequest("PATCH", "/api/auth/password", { currentPassword: cpCurrent, newPassword: cpNew });
+      toast({ title: "Password updated", description: "Your password has been changed successfully." });
+      setCpCurrent(""); setCpNew(""); setCpConfirm("");
+      setShowChangePassword(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to update password";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    } finally {
+      setCpLoading(false);
+    }
   };
 
   const displayName = user.name || user.email;
@@ -101,8 +133,11 @@ export default function AccountMenu({ user, onSettingsClick }: AccountMenuProps)
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* Change Password dialog — UI shell, backend wired in PR 2 */}
-      <Dialog open={showChangePassword} onOpenChange={setShowChangePassword}>
+      {/* Change Password dialog */}
+      <Dialog open={showChangePassword} onOpenChange={(open) => {
+        if (!open) { setCpCurrent(""); setCpNew(""); setCpConfirm(""); }
+        setShowChangePassword(open);
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Change Password</DialogTitle>
@@ -110,28 +145,54 @@ export default function AccountMenu({ user, onSettingsClick }: AccountMenuProps)
               Update your account password. You'll need to enter your current password to confirm.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1">
-              <Label htmlFor="cp-current">Current password</Label>
-              <Input id="cp-current" type="password" placeholder="••••••••" disabled />
+          <form onSubmit={handleChangePassword}>
+            <div className="space-y-4 py-2">
+              <div className="space-y-1">
+                <Label htmlFor="cp-current">Current password</Label>
+                <Input
+                  id="cp-current"
+                  type="password"
+                  placeholder="••••••••"
+                  value={cpCurrent}
+                  onChange={(e) => setCpCurrent(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="cp-new">New password</Label>
+                <Input
+                  id="cp-new"
+                  type="password"
+                  placeholder="••••••••"
+                  value={cpNew}
+                  onChange={(e) => setCpNew(e.target.value)}
+                  autoComplete="new-password"
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="cp-confirm">Confirm new password</Label>
+                <Input
+                  id="cp-confirm"
+                  type="password"
+                  placeholder="••••••••"
+                  value={cpConfirm}
+                  onChange={(e) => setCpConfirm(e.target.value)}
+                  autoComplete="new-password"
+                  required
+                />
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="cp-new">New password</Label>
-              <Input id="cp-new" type="password" placeholder="••••••••" disabled />
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setShowChangePassword(false)} disabled={cpLoading}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={cpLoading || !cpCurrent || !cpNew || !cpConfirm}>
+                {cpLoading ? "Updating…" : "Update Password"}
+              </Button>
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="cp-confirm">Confirm new password</Label>
-              <Input id="cp-confirm" type="password" placeholder="••••••••" disabled />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setShowChangePassword(false)}>
-              Cancel
-            </Button>
-            <Button disabled title="Coming in a future update">
-              Update Password
-            </Button>
-          </div>
+          </form>
         </DialogContent>
       </Dialog>
 

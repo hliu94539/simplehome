@@ -55,7 +55,7 @@ import {
 } from "./services/googleCalendarSync";
 import { initializeUserDefaultTemplates } from "./services/userTemplateInit";
 import passport from "passport";
-import { requireAuth, hashPassword } from "./auth";
+import { requireAuth, hashPassword, verifyPassword } from "./auth";
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { deflateRawSync, inflateRawSync } from "zlib";
 
@@ -279,6 +279,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Update profile error:", error);
       res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
+  app.patch("/api/auth/password", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const { currentPassword, newPassword } = req.body ?? {};
+
+      if (typeof currentPassword !== "string" || typeof newPassword !== "string") {
+        return res.status(400).json({ message: "currentPassword and newPassword are required" });
+      }
+      if (newPassword.length < 8) {
+        return res.status(400).json({ message: "New password must be at least 8 characters" });
+      }
+
+      const user = await storage.getUserById(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const valid = await verifyPassword(currentPassword, user.passwordHash);
+      if (!valid) return res.status(401).json({ message: "Current password is incorrect" });
+
+      const newHash = await hashPassword(newPassword);
+      const ok = await storage.updateUserPassword(userId, newHash);
+      if (!ok) return res.status(500).json({ message: "Failed to update password" });
+
+      res.json({ message: "Password updated" });
+    } catch (error) {
+      console.error("Change password error:", error);
+      res.status(500).json({ message: "Failed to update password" });
     }
   });
 
