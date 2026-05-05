@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
 import { User } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import {
@@ -30,7 +29,6 @@ interface AccountMenuProps {
 
 export default function AccountMenu({ user, onSettingsClick }: AccountMenuProps) {
   const queryClient = useQueryClient();
-  const [, navigate] = useLocation();
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
 
@@ -40,8 +38,11 @@ export default function AccountMenu({ user, onSettingsClick }: AccountMenuProps)
     } catch {
       // Clear local state regardless of server response
     }
-    queryClient.clear();
-    navigate("/");
+    // Set user to null first so the Router immediately shows AuthPage,
+    // then clear the rest of the cache so stale data doesn't bleed into
+    // the next session.
+    queryClient.setQueryData(["/api/auth/me"], null);
+    queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== "/api/auth/me" });
   };
 
   const displayName = user.name || user.email;

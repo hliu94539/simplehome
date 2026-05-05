@@ -510,7 +510,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   // Property Templates
-  app.get("/api/templates", async (req, res) => {
+  app.get("/api/templates", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as { id?: string } | undefined)?.id ?? null;
       const templates = await storage.getPropertyTemplates(userId);
