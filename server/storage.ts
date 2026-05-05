@@ -42,7 +42,7 @@ export interface IStorage {
   getGoogleCalendarSyncScope(userId: string): Promise<GoogleCalendarSyncSelection[]>;
   setGoogleCalendarSyncScope(userId: string, selections: GoogleCalendarSyncSelection[]): Promise<GoogleCalendarConnection>;
   // Property Templates
-  getPropertyTemplates(): Promise<PropertyTemplate[]>;
+  getPropertyTemplates(userId?: string | null): Promise<PropertyTemplate[]>;
   getPropertyTemplate(id: string): Promise<PropertyTemplate | undefined>;
   createPropertyTemplate(template: InsertPropertyTemplate): Promise<PropertyTemplate>;
 
@@ -77,6 +77,7 @@ export interface GoogleCalendarSyncSelection {
 interface MongoPropertyTemplate extends Omit<PropertyTemplate, 'id'> {
   _id?: ObjectId;
   id: string;
+  userId: string | null;
 }
 
 interface MongoMaintenanceTask extends Omit<MaintenanceTask, 'id'> {
@@ -236,6 +237,7 @@ export class MongoDBStorage implements IStorage {
       templateIdMap.set(template.type, id);
       await this.templatesCollection.insertOne({
         id,
+        userId: null,
         name: template.name,
         description: template.description,
         type: template.type,
@@ -360,6 +362,7 @@ export class MongoDBStorage implements IStorage {
   private toPropertyTemplate(doc: MongoPropertyTemplate): PropertyTemplate {
     return {
       id: doc.id,
+      userId: doc.userId ?? null,
       name: doc.name,
       type: doc.type,
       description: doc.description,
@@ -484,8 +487,11 @@ export class MongoDBStorage implements IStorage {
     };
   }
 
-  async getPropertyTemplates(): Promise<PropertyTemplate[]> {
-    const docs = await this.templatesCollection.find().toArray();
+  async getPropertyTemplates(userId?: string | null): Promise<PropertyTemplate[]> {
+    const query: Record<string, unknown> = userId
+      ? { $or: [{ userId }, { userId: null }, { userId: { $exists: false } }] }
+      : {};
+    const docs = await this.templatesCollection.find(query).toArray();
     return docs.map((doc: MongoPropertyTemplate) => this.toPropertyTemplate(doc));
   }
 
@@ -499,6 +505,7 @@ export class MongoDBStorage implements IStorage {
     const newTemplate: MongoPropertyTemplate = {
       ...template,
       id,
+      userId: template.userId ?? null,
       createdAt: new Date(),
       taskCount: template.taskCount ?? 0,
     };

@@ -23,6 +23,7 @@ export interface InsertUser {
 // Property Template Types
 export interface PropertyTemplate {
   id: string;
+  userId: string | null;
   name: string;
   type: string;
   description: string;
@@ -31,6 +32,7 @@ export interface PropertyTemplate {
 }
 
 export interface InsertPropertyTemplate {
+  userId?: string | null;
   name: string;
   type: string;
   description: string;

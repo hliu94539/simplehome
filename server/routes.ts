@@ -508,9 +508,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   // Property Templates
-  app.get("/api/templates", async (_req, res) => {
+  app.get("/api/templates", async (req, res) => {
     try {
-      const templates = await storage.getPropertyTemplates();
+      const userId = (req.user as { id?: string } | undefined)?.id ?? null;
+      const templates = await storage.getPropertyTemplates(userId);
       res.json(templates);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch templates" });
