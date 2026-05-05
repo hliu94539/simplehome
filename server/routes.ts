@@ -293,12 +293,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (newPassword.length < 8) {
         return res.status(400).json({ message: "New password must be at least 8 characters" });
       }
+      if (newPassword === currentPassword) {
+        return res.status(400).json({ message: "New password must differ from current password" });
+      }
 
       const user = await storage.getUserById(userId);
       if (!user) return res.status(404).json({ message: "User not found" });
 
       const valid = await verifyPassword(currentPassword, user.passwordHash);
-      if (!valid) return res.status(401).json({ message: "Current password is incorrect" });
+      if (!valid) return res.status(403).json({ message: "Current password is incorrect" });
 
       const newHash = await hashPassword(newPassword);
       const ok = await storage.updateUserPassword(userId, newHash);
@@ -308,6 +311,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Change password error:", error);
       res.status(500).json({ message: "Failed to update password" });
+    }
+  });
+
+  app.delete("/api/auth/account", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const { password, deleteCalendarData } = req.body ?? {};
+
+      if (typeof password !== "string" || !password) {
+        return res.status(400).json({ message: "password is required" });
+      }
+
+      const user = await storage.getUserById(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const valid = await verifyPassword(password, user.passwordHash);
+      if (!valid) {
+        return res.status(403).json({ message: "Password is incorrect" });
+      }
+
+      let calendarCleanup: {
+        requested: boolean;
+        status: "success" | "partial" | "skipped";
+        eventsDeleted: number;
+        eventsFailed: number;
+        warnings?: string[];
+      } = {
+        requested: !!deleteCalendarData,
+        status: deleteCalendarData ? "success" : "skipped",
+        eventsDeleted: 0,
+        eventsFailed: 0,
+      };
+
+      if (deleteCalendarData) {
+        try {
+          const outcome = await disconnectGoogleCalendar(req, { deleteCalendar: true });
+          const warning = outcome.calendarDeleteMessage;
+          if (warning && warning.trim().length > 0) {
+            calendarCleanup = {
+              requested: true,
+              status: "partial",
+              eventsDeleted: 0,
+              eventsFailed: 0,
+              warnings: [warning],
+            };
+          }
+        } catch (error: any) {
+          calendarCleanup = {
+            requested: true,
+            status: "partial",
+            eventsDeleted: 0,
+            eventsFailed: 0,
+            warnings: [error?.message || "Calendar cleanup encountered an error"],
+          };
+        }
+      } else {
+        // Ensure local Google connection is still removed when remote cleanup is not requested.
+        await storage.deleteGoogleCalendarConnection(userId);
+      }
+
+      const deleted = await storage.deleteUserAccountData(userId);
+      if (deleted.deletedUsers !== 1) {
+        return res.status(500).json({ message: "Failed to delete account" });
+      }
+
+      req.logout((logoutErr) => {
+        if (logoutErr) {
+          return res.status(500).json({ message: "Account deleted, but logout failed" });
+        }
+
+        const session = (req as any).session;
+        if (session && typeof session.destroy === "function") {
+          session.destroy((destroyErr: any) => {
+            if (destroyErr) {
+              return res.status(500).json({ message: "Account deleted, but session cleanup failed" });
+            }
+
+            const message =
+              calendarCleanup.requested && calendarCleanup.status === "partial"
+                ? "Account deleted with calendar cleanup warnings"
+                : "Account deleted";
+            return res.json({ message, calendarCleanup });
+          });
+          return;
+        }
+
+        const message =
+          calendarCleanup.requested && calendarCleanup.status === "partial"
+            ? "Account deleted with calendar cleanup warnings"
+            : "Account deleted";
+        return res.json({ message, calendarCleanup });
+      });
+    } catch (error) {
+      console.error("Delete account error:", error);
+      res.status(500).json({ message: "Failed to delete account" });
     }
   });
 

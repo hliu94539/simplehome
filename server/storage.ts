@@ -36,6 +36,12 @@ export interface IStorage {
   getUserById(id: string): Promise<User | undefined>;
   updateUserProfile(id: string, updates: { name?: string; timezone?: string | null }): Promise<User | undefined>;
   updateUserPassword(id: string, passwordHash: string): Promise<boolean>;
+  deleteUserAccountData(userId: string): Promise<{
+    deletedQuestionnaireResponses: number;
+    deletedTasks: number;
+    deletedTemplates: number;
+    deletedUsers: number;
+  }>;
 
   // Google Calendar Connections
   getGoogleCalendarConnection(userId: string): Promise<GoogleCalendarConnection | undefined>;
@@ -575,6 +581,27 @@ export class MongoDBStorage implements IStorage {
   async updateUserPassword(id: string, passwordHash: string): Promise<boolean> {
     const result = await this.usersCollection.updateOne({ id }, { $set: { passwordHash } });
     return result.modifiedCount === 1;
+  }
+
+  async deleteUserAccountData(userId: string): Promise<{
+    deletedQuestionnaireResponses: number;
+    deletedTasks: number;
+    deletedTemplates: number;
+    deletedUsers: number;
+  }> {
+    const [responsesResult, tasksResult, templatesResult, usersResult] = await Promise.all([
+      this.responsesCollection.deleteMany({ userId }),
+      this.tasksCollection.deleteMany({ userId }),
+      this.templatesCollection.deleteMany({ userId }),
+      this.usersCollection.deleteMany({ id: userId }),
+    ]);
+
+    return {
+      deletedQuestionnaireResponses: responsesResult.deletedCount,
+      deletedTasks: tasksResult.deletedCount,
+      deletedTemplates: templatesResult.deletedCount,
+      deletedUsers: usersResult.deletedCount,
+    };
   }
 
   async getPropertyTemplates(userId?: string | null): Promise<PropertyTemplate[]> {

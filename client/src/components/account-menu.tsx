@@ -39,6 +39,9 @@ export default function AccountMenu({ user, onSettingsClick }: AccountMenuProps)
   const [cpNew, setCpNew] = useState("");
   const [cpConfirm, setCpConfirm] = useState("");
   const [cpLoading, setCpLoading] = useState(false);
+  const [daPassword, setDaPassword] = useState("");
+  const [daDeleteCalendarData, setDaDeleteCalendarData] = useState(false);
+  const [daLoading, setDaLoading] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -74,6 +77,33 @@ export default function AccountMenu({ user, onSettingsClick }: AccountMenuProps)
       toast({ title: "Error", description: msg, variant: "destructive" });
     } finally {
       setCpLoading(false);
+    }
+  };
+
+  const handleDeleteAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!daPassword) {
+      toast({ title: "Password required", description: "Enter your password to confirm account deletion.", variant: "destructive" });
+      return;
+    }
+
+    setDaLoading(true);
+    try {
+      await apiRequest("DELETE", "/api/auth/account", {
+        password: daPassword,
+        deleteCalendarData: daDeleteCalendarData,
+      });
+      toast({ title: "Account deleted", description: "Your account and data have been removed." });
+      queryClient.setQueryData(["/api/auth/me"], null);
+      queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== "/api/auth/me" });
+      setShowDeleteAccount(false);
+      setDaPassword("");
+      setDaDeleteCalendarData(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to delete account";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    } finally {
+      setDaLoading(false);
     }
   };
 
@@ -196,8 +226,13 @@ export default function AccountMenu({ user, onSettingsClick }: AccountMenuProps)
         </DialogContent>
       </Dialog>
 
-      {/* Delete Account dialog — UI shell, backend wired in PR 3 */}
-      <Dialog open={showDeleteAccount} onOpenChange={setShowDeleteAccount}>
+      <Dialog open={showDeleteAccount} onOpenChange={(open) => {
+        if (!open) {
+          setDaPassword("");
+          setDaDeleteCalendarData(false);
+        }
+        setShowDeleteAccount(open);
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Delete Account</DialogTitle>
@@ -205,20 +240,39 @@ export default function AccountMenu({ user, onSettingsClick }: AccountMenuProps)
               Permanently delete your account and all associated data. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1">
-              <Label htmlFor="da-password">Enter your password to confirm</Label>
-              <Input id="da-password" type="password" placeholder="••••••••" disabled />
+          <form onSubmit={handleDeleteAccount}>
+            <div className="space-y-4 py-2">
+              <div className="space-y-1">
+                <Label htmlFor="da-password">Enter your password to confirm</Label>
+                <Input
+                  id="da-password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={daPassword}
+                  onChange={(e) => setDaPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+              </div>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={daDeleteCalendarData}
+                  onChange={(e) => setDaDeleteCalendarData(e.target.checked)}
+                />
+                Also delete synced Google Calendar data (best effort)
+              </label>
             </div>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setShowDeleteAccount(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" disabled title="Coming in a future update">
-              Delete Account
-            </Button>
-          </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setShowDeleteAccount(false)} disabled={daLoading}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="destructive" disabled={daLoading || !daPassword}>
+                {daLoading ? "Deleting..." : "Delete Account"}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </>
