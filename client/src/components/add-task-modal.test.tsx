@@ -3,7 +3,7 @@ import AddTaskModal from './add-task-modal';
 
 describe('AddTaskModal', () => {
   it('renders modal title', () => {
-    render(<AddTaskModal open={true} onOpenChange={() => {}} />);
+    render(<AddTaskModal isOpen={true} onClose={() => {}} />);
     expect(screen.getByText(/Add New Item \/ Task/i)).toBeInTheDocument();
   });
 });

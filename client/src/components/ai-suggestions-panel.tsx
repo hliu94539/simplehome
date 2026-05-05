@@ -71,13 +71,13 @@ export default function AISuggestionsPanel({ onClose, existingTasks }: AISuggest
 
   const handleAcceptSuggestion = (suggestion: AISuggestion) => {
     const suggestionId = `${suggestion.title}-${suggestion.category}`;
-    setAcceptedSuggestions(prev => new Set([...prev, suggestionId]));
+    setAcceptedSuggestions(prev => new Set([...Array.from(prev), suggestionId]));
     addTaskMutation.mutate(suggestion);
   };
 
   const handleRejectSuggestion = (suggestion: AISuggestion) => {
     const suggestionId = `${suggestion.title}-${suggestion.category}`;
-    setRejectedSuggestions(prev => new Set([...prev, suggestionId]));
+    setRejectedSuggestions(prev => new Set([...Array.from(prev), suggestionId]));
     toast({
       title: "Suggestion rejected",
       description: "This suggestion won't be shown again.",

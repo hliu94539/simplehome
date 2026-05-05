@@ -526,7 +526,7 @@ function computeScopeRemovals(
   const nextByTaskId = new Map(nextSelections.map((selection) => [selection.taskId, selection]));
   const removals: ScopeRemoval[] = [];
 
-  for (const [taskId, previousSelection] of previousByTaskId.entries()) {
+  for (const [taskId, previousSelection] of Array.from(previousByTaskId.entries())) {
     const nextSelection = nextByTaskId.get(taskId);
     if (previousSelection.includeMinor && !nextSelection?.includeMinor) {
       removals.push({ taskId, kind: "minor" });
@@ -616,14 +616,14 @@ async function detachTaskExportsForKinds(
     refsByTaskId.set(ref.taskId, kinds);
   }
 
-  for (const [taskId, kinds] of refsByTaskId.entries()) {
+  for (const [taskId, kinds] of Array.from(refsByTaskId.entries())) {
     const task = await storage.getMaintenanceTask(taskId, userId);
     if (!task) {
       continue;
     }
 
     let nextCalendarExports = task.calendarExports;
-    for (const kind of kinds.values()) {
+    for (const kind of Array.from(kinds.values())) {
       const next = detachGoogleSyncExportKind({ ...task, calendarExports: nextCalendarExports }, kind);
       nextCalendarExports = next;
     }
