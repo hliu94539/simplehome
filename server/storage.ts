@@ -605,9 +605,7 @@ export class MongoDBStorage implements IStorage {
   }
 
   async getPropertyTemplates(userId?: string | null): Promise<PropertyTemplate[]> {
-    const query: Record<string, unknown> = userId
-      ? { $or: [{ userId }, { userId: null }, { userId: { $exists: false } }] }
-      : {};
+    const query: Record<string, unknown> = userId ? { userId } : {};
     const docs = await this.templatesCollection.find(query).toArray();
     return docs.map((doc: MongoPropertyTemplate) => this.toPropertyTemplate(doc));
   }
@@ -637,38 +635,46 @@ export class MongoDBStorage implements IStorage {
     search?: string;
     templateId?: string;
   }): Promise<MaintenanceTask[]> {
-    const query: any = {};
-    
-    // Scope to user: show tasks belonging to this user OR system-seeded tasks (userId: null)
+    const andConditions: any[] = [];
+
     if (userId) {
-      query.$or = [{ userId }, { userId: null }, { userId: { $exists: false } }];
+      andConditions.push({ userId });
     }
 
     if (filters) {
       if (filters.category) {
         console.log('Filtering by category:', filters.category);
-        query.category = filters.category;
+        andConditions.push({ category: filters.category });
       }
       if (filters.priority) {
         console.log('Filtering by priority:', filters.priority);
-        query.priority = filters.priority;
+        andConditions.push({ priority: filters.priority });
       }
       if (filters.status) {
         console.log('Filtering by status:', filters.status);
-        query.status = filters.status;
+        andConditions.push({ status: filters.status });
       }
       if (filters.search) {
         const searchRegex = new RegExp(filters.search, 'i');
-        query.$or = [
-          { title: { $regex: searchRegex } },
-          { description: { $regex: searchRegex } }
-        ];
+        andConditions.push({
+          $or: [
+            { title: { $regex: searchRegex } },
+            { description: { $regex: searchRegex } },
+          ],
+        });
       }
       if (filters.templateId) {
         console.log('Filtering by templateId:', filters.templateId);
-        query.templateId = filters.templateId;
+        andConditions.push({ templateId: filters.templateId });
       }
     }
+
+    const query: any =
+      andConditions.length === 0
+        ? {}
+        : andConditions.length === 1
+          ? andConditions[0]
+          : { $and: andConditions };
     
     const docs = await this.tasksCollection.find(query).toArray();
     const tasks = docs.map((doc: MongoMaintenanceTask) => this.toMaintenanceTask(doc));
@@ -783,7 +789,7 @@ export class MongoDBStorage implements IStorage {
   async getMaintenanceTask(id: string, userId: string | null): Promise<MaintenanceTask | undefined> {
     const query: any = { id };
     if (userId) {
-      query.$or = [{ userId }, { userId: null }, { userId: { $exists: false } }];
+      query.userId = userId;
     }
     const doc = await this.tasksCollection.findOne(query);
     return doc ? this.toMaintenanceTask(doc) : undefined;
@@ -857,7 +863,7 @@ export class MongoDBStorage implements IStorage {
     
     const query: any = { id };
     if (userId) {
-      query.$or = [{ userId }, { userId: null }, { userId: { $exists: false } }];
+      query.userId = userId;
     }
     
     const result = await this.tasksCollection.findOneAndUpdate(
@@ -873,7 +879,7 @@ export class MongoDBStorage implements IStorage {
     // First get the task to check templateId
     const query: any = { id };
     if (userId) {
-      query.$or = [{ userId }, { userId: null }, { userId: { $exists: false } }];
+      query.userId = userId;
     }
     const task = await this.tasksCollection.findOne(query);
     
@@ -901,7 +907,7 @@ export class MongoDBStorage implements IStorage {
     
     // Use upsert to replace existing response for this session
     await this.responsesCollection.updateOne(
-      { sessionId: response.sessionId },
+      { sessionId: response.sessionId, userId: userId ?? null },
       { $set: newResponse },
       { upsert: true }
     );
@@ -912,7 +918,7 @@ export class MongoDBStorage implements IStorage {
   async getQuestionnaireResponse(sessionId: string, userId: string | null): Promise<QuestionnaireResponse | undefined> {
     const query: any = { sessionId };
     if (userId) {
-      query.$or = [{ userId }, { userId: null }, { userId: { $exists: false } }];
+      query.userId = userId;
     }
     const doc = await this.responsesCollection.findOne(query);
     return doc ? this.toQuestionnaireResponse(doc) : undefined;
