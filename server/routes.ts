@@ -23,6 +23,8 @@ import {
   insertQuestionnaireResponseSchema,
   compareDateOnly,
   normalizeDateOnly,
+  parseMaintenanceSchedule,
+  serializeMaintenanceSchedule,
   toDateOnlyFromLocalDate,
   validateInsertMaintenanceTask,
   validateInsertQuestionnaireResponse,
@@ -755,6 +757,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Update task error:", error);
       res.status(500).json({ message: "Failed to update task" });
+    }
+  });
+
+  app.post("/api/tasks/bulk-next-maintenance-date", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const { taskIds, kind, date, mode } = req.body ?? {};
+
+      if (!Array.isArray(taskIds) || taskIds.length === 0) {
+        return res.status(400).json({ message: "taskIds must be a non-empty array" });
+      }
+      if (kind !== "minor" && kind !== "major") {
+        return res.status(400).json({ message: "kind must be 'minor' or 'major'" });
+      }
+      if (mode !== "fill-empty-only" && mode !== "overwrite") {
+        return res.status(400).json({ message: "mode must be 'fill-empty-only' or 'overwrite'" });
+      }
+      if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ message: "date must be in yyyy-mm-dd format" });
+      }
+
+      const normalizedDate = normalizeDateOnly(date);
+      if (!normalizedDate || normalizedDate !== date) {
+        return res.status(400).json({ message: "date must be a valid yyyy-mm-dd value" });
+      }
+
+      const uniqueTaskIds = Array.from(
+        new Set(taskIds.filter((id: unknown): id is string => typeof id === "string" && id.trim().length > 0)),
+      );
+      if (uniqueTaskIds.length === 0) {
+        return res.status(400).json({ message: "taskIds must contain valid string ids" });
+      }
+
+      let updated = 0;
+      let skipped = 0;
+      let failed = 0;
+
+      for (const taskId of uniqueTaskIds) {
+        const task = await storage.getMaintenanceTask(taskId, userId);
+        if (!task) {
+          failed += 1;
+          continue;
+        }
+
+        const schedule = parseMaintenanceSchedule(task.nextMaintenanceDate);
+        const existingValue = kind === "minor" ? schedule.minor : schedule.major;
+
+        if (mode === "fill-empty-only" && existingValue) {
+          skipped += 1;
+          continue;
+        }
+
+        const nextSchedule = {
+          ...schedule,
+          [kind]: normalizedDate,
+        };
+
+        const updatedTask = await storage.updateMaintenanceTask(
+          taskId,
+          { nextMaintenanceDate: serializeMaintenanceSchedule(nextSchedule) },
+          userId,
+        );
+
+        if (updatedTask) {
+          updated += 1;
+        } else {
+          failed += 1;
+        }
+      }
+
+      res.json({ updated, skipped, failed });
+    } catch (error) {
+      console.error("Bulk next maintenance date update error:", error);
+      res.status(500).json({ message: "Failed to bulk update next maintenance dates" });
     }
   });
 

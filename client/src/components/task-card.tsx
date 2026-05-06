@@ -27,6 +27,9 @@ interface TaskCardProps {
   task: MaintenanceTask;
   showMinor?: boolean; // Whether to show minor maintenance section
   showMajor?: boolean; // Whether to show major maintenance section
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelected?: (taskId: string, selected: boolean) => void;
 }
 
 const categoryColors = {
@@ -46,7 +49,14 @@ const priorityColors = {
   Low: "bg-blue-100 text-blue-800",
 };
 
-export default function TaskCard({ task, showMinor = true, showMajor = true }: TaskCardProps) {
+export default function TaskCard({
+  task,
+  showMinor = true,
+  showMajor = true,
+  selectable = false,
+  selected = false,
+  onToggleSelected,
+}: TaskCardProps) {
   const [isCompleting, setIsCompleting] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isMinorCalendarOpen, setIsMinorCalendarOpen] = useState(false);
@@ -354,6 +364,16 @@ export default function TaskCard({ task, showMinor = true, showMajor = true }: T
     <Card className="p-4 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between">
         <div className="flex-1">
+          {selectable && (
+            <label className="inline-flex items-center gap-2 mb-2 text-xs text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selected}
+                onChange={(e) => onToggleSelected?.(task.id, e.target.checked)}
+              />
+              Select for bulk update
+            </label>
+          )}
           <div className="flex items-center space-x-2 mb-2">
             <Badge 
               variant="secondary" 

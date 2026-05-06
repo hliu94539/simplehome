@@ -21,8 +21,10 @@ import AddTaskModal from "@/components/add-task-modal";
 import ExportScheduleModal from "@/components/export-schedule-modal";
 import UserSettingsModal from "@/components/user-settings-modal";
 import AccountMenu from "@/components/account-menu";
-import { getQueryFn } from "@/lib/queryClient";
+import BulkFillDatesModal, { BulkFillKind, BulkFillMode } from "@/components/bulk-fill-dates-modal";
+import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 const EMPTY_TASKS: MaintenanceTask[] = [];
 
@@ -42,6 +44,7 @@ const categoryColors = {
 export default function Dashboard() {
   const { templateId } = useParams();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilters, setCategoryFilters] = useState<CategoryFilter[]>([]);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
@@ -54,6 +57,9 @@ export default function Dashboard() {
   const [includeMinor, setIncludeMinor] = useState(true);
   const [includeMajor, setIncludeMajor] = useState(true);
   const [deferredOnly, setDeferredOnly] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [showBulkFillModal, setShowBulkFillModal] = useState(false);
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
 
   const fetchWithBackoff = async (url: string, init: RequestInit, maxAttempts = 3): Promise<Response> => {
     let lastError: unknown;
@@ -513,6 +519,79 @@ export default function Dashboard() {
     return 0; // Default: maintain original order
   });
 
+  const selectedCount = selectedTaskIds.size;
+
+  const toggleTaskSelected = (taskId: string, selected: boolean) => {
+    setSelectedTaskIds((prev) => {
+      const next = new Set(prev);
+      if (selected) {
+        next.add(taskId);
+      } else {
+        next.delete(taskId);
+      }
+      return next;
+    });
+  };
+
+  const allVisibleSelected = sortedTasks.length > 0 && sortedTasks.every((task) => selectedTaskIds.has(task.id));
+
+  const toggleSelectAllVisible = () => {
+    setSelectedTaskIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        for (const task of sortedTasks) {
+          next.delete(task.id);
+        }
+      } else {
+        for (const task of sortedTasks) {
+          next.add(task.id);
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleBulkFillSubmit = async (payload: { kind: BulkFillKind; date: string; mode: BulkFillMode }) => {
+    if (selectedTaskIds.size === 0) {
+      toast({
+        title: "No tasks selected",
+        description: "Select at least one task before running bulk fill.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setBulkSubmitting(true);
+    try {
+      const response = await apiRequest("POST", "/api/tasks/bulk-next-maintenance-date", {
+        taskIds: Array.from(selectedTaskIds),
+        kind: payload.kind,
+        date: payload.date,
+        mode: payload.mode,
+      });
+      const result = await response.json();
+
+      await queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+
+      toast({
+        title: "Bulk update complete",
+        description: `Updated ${result.updated}, skipped ${result.skipped}, failed ${result.failed}.`,
+      });
+
+      setShowBulkFillModal(false);
+      setSelectedTaskIds(new Set());
+    } catch (error: any) {
+      toast({
+        title: "Bulk update failed",
+        description: error?.message || "Failed to apply bulk maintenance date update.",
+        variant: "destructive",
+      });
+    } finally {
+      setBulkSubmitting(false);
+    }
+  };
+
   if (tasksLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -745,6 +824,20 @@ export default function Dashboard() {
                 <div className="flex flex-col gap-3">
                   <CardTitle className="text-lg">Items / Tasks</CardTitle>
                   <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant={selectedCount > 0 ? "default" : "outline"}
+                      onClick={() => setShowBulkFillModal(true)}
+                      disabled={selectedCount === 0}
+                    >
+                      Bulk Fill Dates ({selectedCount})
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={toggleSelectAllVisible}
+                      disabled={sortedTasks.length === 0}
+                    >
+                      {allVisibleSelected ? "Unselect Visible" : "Select Visible"}
+                    </Button>
                     <label className="flex items-center gap-2 px-2 text-sm text-gray-600 whitespace-nowrap">
                       <Checkbox
                         checked={deferredOnly}
@@ -796,6 +889,9 @@ export default function Dashboard() {
                       task={task} 
                       showMinor={task.showMinor}
                       showMajor={task.showMajor}
+                      selectable={true}
+                      selected={selectedTaskIds.has(task.id)}
+                      onToggleSelected={toggleTaskSelected}
                     />
                   ))}
                   {sortedTasks.length === 0 && (
@@ -832,6 +928,14 @@ export default function Dashboard() {
         onClose={() => setShowSettingsModal(false)}
         currentTimezone={user?.timezone ?? null}
         currentName={user?.name ?? ""}
+      />
+
+      <BulkFillDatesModal
+        isOpen={showBulkFillModal}
+        onClose={() => setShowBulkFillModal(false)}
+        selectedCount={selectedCount}
+        isSubmitting={bulkSubmitting}
+        onSubmit={handleBulkFillSubmit}
       />
     </div>
   );
