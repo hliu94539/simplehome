@@ -63,8 +63,8 @@ interface DefaultTemplateTaskSeed {
 
 #### Normalization performed
 
-- `lastMaintenanceDate` / `nextMaintenanceDate` – parsed from `{ minor, major }` raw objects and
-  serialized via `serializeMaintenanceSchedule` (same format used by the rest of the app).
+- `lastMaintenanceDate` / `nextMaintenanceDate` – always initialized to `null` so new users can
+  provide real maintenance history/scheduling data themselves.
 - `installationDate` – converted from an ISO date string to a `Date` or `null`.
 - Empty / whitespace strings for `brand`, `model`, `location`, `notes` are coerced to `null`.
 - `relatedItemIds` – serialized to a JSON string if present, otherwise `null`.

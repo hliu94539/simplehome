@@ -189,6 +189,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // which causes the client router to render a 404 page for "/favicon.ico" in the browser.
   app.get('/favicon.ico', (_req, res) => res.status(204).end());
 
+  // Normalize accidental duplicate slashes in request paths, e.g. "//api/auth/me".
+  app.use((req, _res, next) => {
+    const [rawPath, rawQuery] = req.url.split("?");
+    const normalizedPath = (rawPath || "/").replace(/\/{2,}/g, "/");
+    if (normalizedPath !== rawPath) {
+      req.url = rawQuery ? `${normalizedPath}?${rawQuery}` : normalizedPath;
+    }
+    next();
+  });
+
   // --- Auth routes ---
   app.post("/api/auth/register", async (req, res, next) => {
     try {

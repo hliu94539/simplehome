@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -101,6 +101,17 @@ interface UserSettingsModalProps {
   currentName: string;
 }
 
+type GoogleCalendarStatus = {
+  configured: boolean;
+  connected: boolean;
+  accountEmail: string | null;
+  calendarId: string | null;
+  lastSyncedAt: string | null;
+  activeScopeCount?: number;
+  syncScopeVersion?: number;
+  syncScopeUpdatedAt?: string | null;
+};
+
 export default function UserSettingsModal({
   isOpen,
   onClose,
@@ -112,6 +123,14 @@ export default function UserSettingsModal({
   const [selectedTimezone, setSelectedTimezone] = useState<string>(
     currentTimezone || detectBrowserTimezone(),
   );
+
+  const { data: googleCalendarStatus, isLoading: googleStatusLoading } = useQuery<GoogleCalendarStatus>({
+    queryKey: ["/api/calendar/google/sync/status"],
+    queryFn: getQueryFn({ on401: "throw" }),
+    enabled: isOpen,
+    staleTime: 30_000,
+    retry: false,
+  });
 
   // Sync selected timezone if modal re-opens with a different value
   useEffect(() => {
@@ -144,6 +163,34 @@ export default function UserSettingsModal({
 
   const selectedLabel =
     TIMEZONE_OPTIONS.find((tz) => tz.value === selectedTimezone)?.label ?? selectedTimezone;
+
+  const copyCalendarId = async () => {
+    const calendarId = googleCalendarStatus?.calendarId;
+    if (!calendarId) {
+      toast({
+        title: "No calendar ID",
+        description: "No connected Google calendar ID is available.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(calendarId);
+      toast({
+        title: "Copied",
+        description: "Google Calendar ID copied to clipboard.",
+      });
+    } catch {
+      toast({
+        title: "Copy failed",
+        description: "Clipboard access failed. Please copy it manually.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const googleCalendarSettingsUrl = "https://calendar.google.com/calendar/u/0/r";
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -186,6 +233,34 @@ export default function UserSettingsModal({
             <p className="text-xs text-gray-500">
               Browser detected: <span className="font-mono">{detectBrowserTimezone()}</span>
             </p>
+          </div>
+
+          <div className="space-y-2 rounded-md border border-gray-200 p-3 bg-gray-50">
+            <Label className="text-sm font-medium">Google Calendar ID</Label>
+            {googleStatusLoading ? (
+              <p className="text-sm text-gray-500">Loading Google Calendar status...</p>
+            ) : googleCalendarStatus?.connected && googleCalendarStatus.calendarId ? (
+              <>
+                <p className="text-xs text-gray-500">
+                  Connected as {googleCalendarStatus.accountEmail || "unknown account"}
+                </p>
+                <p className="text-sm font-mono break-all bg-white border rounded px-2 py-1">
+                  {googleCalendarStatus.calendarId}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={copyCalendarId}>
+                    Copy Calendar ID
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" asChild>
+                    <a href={googleCalendarSettingsUrl} target="_blank" rel="noreferrer">
+                      Open Google Calendar Settings
+                    </a>
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-gray-500">Google Calendar is not connected.</p>
+            )}
           </div>
         </div>
 
