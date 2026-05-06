@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { format } from "date-fns";
 import {
   Dialog,
   DialogContent,
@@ -8,7 +9,17 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export type BulkFillKind = "minor" | "major";
 export type BulkFillMode = "fill-empty-only" | "overwrite";
@@ -29,20 +40,52 @@ export default function BulkFillDatesModal({
   onSubmit,
 }: BulkFillDatesModalProps) {
   const [kind, setKind] = useState<BulkFillKind>("minor");
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState<Date | null>(null);
+  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [mode, setMode] = useState<BulkFillMode>("fill-empty-only");
+  const currentYear = new Date().getFullYear();
+  const minYear = currentYear - 10;
+  const maxYear = currentYear + 30;
+  const yearOptions = Array.from({ length: maxYear - minYear + 1 }, (_, i) => minYear + i);
+  const monthOptions = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+
+  const toDateOnlyString = (value: Date): string => {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
 
   useEffect(() => {
     if (!isOpen) {
       setKind("minor");
-      setDate("");
+      setDate(null);
       setMode("fill-empty-only");
+      setCalendarMonth(new Date());
+      setCalendarOpen(false);
     }
   }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSubmit({ kind, date, mode });
+    if (!date) {
+      return;
+    }
+    await onSubmit({ kind, date: toDateOnlyString(date), mode });
   };
 
   return (
@@ -72,14 +115,77 @@ export default function BulkFillDatesModal({
 
           <div className="space-y-2">
             <Label htmlFor="bulk-date">Date</Label>
-            <Input
-              id="bulk-date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              disabled={isSubmitting}
-              required
-            />
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  id="bulk-date"
+                  type="button"
+                  variant="outline"
+                  disabled={isSubmitting}
+                  className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}
+                >
+                  {date ? format(date, "PPP") : <span>Pick a date</span>}
+                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <div className="flex items-center gap-2 p-3 border-b bg-gray-50">
+                  <Select
+                    value={String(calendarMonth.getMonth())}
+                    onValueChange={(value) => {
+                      const next = new Date(calendarMonth);
+                      next.setMonth(parseInt(value, 10));
+                      setCalendarMonth(next);
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-[150px]">
+                      <SelectValue placeholder="Month" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {monthOptions.map((monthLabel, index) => (
+                        <SelectItem key={monthLabel} value={String(index)}>
+                          {monthLabel}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={String(calendarMonth.getFullYear())}
+                    onValueChange={(value) => {
+                      const next = new Date(calendarMonth);
+                      next.setFullYear(parseInt(value, 10));
+                      setCalendarMonth(next);
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-[110px]">
+                      <SelectValue placeholder="Year" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-64">
+                      {yearOptions.map((year) => (
+                        <SelectItem key={year} value={String(year)}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Calendar
+                  mode="single"
+                  selected={date ?? undefined}
+                  month={calendarMonth}
+                  onMonthChange={setCalendarMonth}
+                  onSelect={(selectedDate) => {
+                    if (!selectedDate) {
+                      return;
+                    }
+                    setDate(selectedDate);
+                    setCalendarMonth(selectedDate);
+                    setCalendarOpen(false);
+                  }}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
           </div>
 
           <div className="space-y-2">

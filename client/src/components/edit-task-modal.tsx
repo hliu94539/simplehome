@@ -82,8 +82,28 @@ const priorities = ["Low", "Medium", "High", "Urgent"];
 export default function EditTaskModal({ isOpen, onClose, task }: EditTaskModalProps) {
   const [isMinorCalendarOpen, setIsMinorCalendarOpen] = useState(false);
   const [isMajorCalendarOpen, setIsMajorCalendarOpen] = useState(false);
+  const [minorMonth, setMinorMonth] = useState<Date>(new Date());
+  const [majorMonth, setMajorMonth] = useState<Date>(new Date());
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const currentYear = new Date().getFullYear();
+  const minYear = currentYear - 10;
+  const maxYear = currentYear + 30;
+  const yearOptions = Array.from({ length: maxYear - minYear + 1 }, (_, i) => minYear + i);
+  const monthOptions = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
 
   // Parse lastMaintenanceDate from task
   const getLastMaintenanceDates = () => {
@@ -138,6 +158,8 @@ export default function EditTaskModal({ isOpen, onClose, task }: EditTaskModalPr
   // Reset form when task changes
   useEffect(() => {
     const dates = getLastMaintenanceDates();
+    setMinorMonth(dates.minor ?? new Date());
+    setMajorMonth(dates.major ?? new Date());
     form.reset({
       title: task.title,
       description: task.description,
@@ -424,11 +446,56 @@ export default function EditTaskModal({ isOpen, onClose, task }: EditTaskModalPr
                         </FormControl>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
+                        <div className="flex items-center gap-2 p-3 border-b bg-gray-50">
+                          <Select
+                            value={String(minorMonth.getMonth())}
+                            onValueChange={(value) => {
+                              const next = new Date(minorMonth);
+                              next.setMonth(parseInt(value, 10));
+                              setMinorMonth(next);
+                            }}
+                          >
+                            <SelectTrigger className="h-8 w-[150px]">
+                              <SelectValue placeholder="Month" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {monthOptions.map((monthLabel, index) => (
+                                <SelectItem key={monthLabel} value={String(index)}>
+                                  {monthLabel}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Select
+                            value={String(minorMonth.getFullYear())}
+                            onValueChange={(value) => {
+                              const next = new Date(minorMonth);
+                              next.setFullYear(parseInt(value, 10));
+                              setMinorMonth(next);
+                            }}
+                          >
+                            <SelectTrigger className="h-8 w-[110px]">
+                              <SelectValue placeholder="Year" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-64">
+                              {yearOptions.map((year) => (
+                                <SelectItem key={year} value={String(year)}>
+                                  {year}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <Calendar
                           mode="single"
                           selected={field.value || undefined}
+                          month={minorMonth}
+                          onMonthChange={setMinorMonth}
                           onSelect={(date) => {
                             field.onChange(date);
+                            if (date) {
+                              setMinorMonth(date);
+                            }
                             setIsMinorCalendarOpen(false);
                           }}
                           disabled={(date) => date > new Date()}
@@ -467,11 +534,56 @@ export default function EditTaskModal({ isOpen, onClose, task }: EditTaskModalPr
                         </FormControl>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
+                        <div className="flex items-center gap-2 p-3 border-b bg-gray-50">
+                          <Select
+                            value={String(majorMonth.getMonth())}
+                            onValueChange={(value) => {
+                              const next = new Date(majorMonth);
+                              next.setMonth(parseInt(value, 10));
+                              setMajorMonth(next);
+                            }}
+                          >
+                            <SelectTrigger className="h-8 w-[150px]">
+                              <SelectValue placeholder="Month" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {monthOptions.map((monthLabel, index) => (
+                                <SelectItem key={monthLabel} value={String(index)}>
+                                  {monthLabel}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Select
+                            value={String(majorMonth.getFullYear())}
+                            onValueChange={(value) => {
+                              const next = new Date(majorMonth);
+                              next.setFullYear(parseInt(value, 10));
+                              setMajorMonth(next);
+                            }}
+                          >
+                            <SelectTrigger className="h-8 w-[110px]">
+                              <SelectValue placeholder="Year" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-64">
+                              {yearOptions.map((year) => (
+                                <SelectItem key={year} value={String(year)}>
+                                  {year}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <Calendar
                           mode="single"
                           selected={field.value || undefined}
+                          month={majorMonth}
+                          onMonthChange={setMajorMonth}
                           onSelect={(date) => {
                             field.onChange(date);
+                            if (date) {
+                              setMajorMonth(date);
+                            }
                             setIsMajorCalendarOpen(false);
                           }}
                           disabled={(date) => date > new Date()}
