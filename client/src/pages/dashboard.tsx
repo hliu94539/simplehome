@@ -551,6 +551,20 @@ export default function Dashboard() {
     });
   };
 
+  const selectAllVisible = () => {
+    setSelectedTaskIds((prev) => {
+      const next = new Set(prev);
+      for (const task of sortedTasks) {
+        next.add(task.id);
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedTaskIds(new Set());
+  };
+
   const handleBulkFillSubmit = async (payload: { kind: BulkFillKind; date: string; mode: BulkFillMode }) => {
     if (selectedTaskIds.size === 0) {
       toast({
@@ -830,6 +844,20 @@ export default function Dashboard() {
                       disabled={selectedCount === 0}
                     >
                       Bulk Fill Dates ({selectedCount})
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={selectAllVisible}
+                      disabled={sortedTasks.length === 0}
+                    >
+                      Select All
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={clearSelection}
+                      disabled={selectedCount === 0}
+                    >
+                      Clear Selection
                     </Button>
                     <Button
                       variant="outline"
