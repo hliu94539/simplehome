@@ -15,6 +15,9 @@
     "test:changed": "NODE_OPTIONS=--max-old-space-size=4096 jest -o --maxWorkers=50%",
     "test:highmem": "NODE_OPTIONS=--max-old-space-size=6144 jest",
     "test:coverage": "jest --coverage",
+    "recover:legacy-user-data": "tsx scripts/recover-legacy-user-data.ts",
+    "guard:legacy-userid": "tsx scripts/check-legacy-userid-data.ts",
+    "test:rollout-guard": "npm run guard:legacy-userid",
     "lint": "eslint . --ext .ts,.tsx --fix",
     "prepare": "husky install"
   },
