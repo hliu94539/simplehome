@@ -2,11 +2,10 @@ import fs from "fs";
 import path from "path";
 import {
   normalizeDateOnly,
-  serializeMaintenanceSchedule,
   type InsertMaintenanceTask,
 } from "../../shared/schema";
 
-export type DefaultTemplateType = "single_family" | "townhouse" | "condo" | "commercial";
+export type DefaultTemplateType = "single_family" | "townhouse" | "condo" | "commercial" | "rental";
 
 export interface DefaultTemplateTaskSeed {
   sourceItemId: string;
@@ -21,19 +20,20 @@ export interface DefaultTemplateSeed {
   tasks: DefaultTemplateTaskSeed[];
 }
 
-type RawMaintenanceDate = {
-  minor?: string | null;
-  major?: string | null;
-};
-
 type RawTemplateItem = {
   id?: string;
   name?: string;
   brand?: string | null;
   model?: string | null;
   installationDate?: string | null;
-  lastMaintenanceDate?: RawMaintenanceDate | null;
-  nextMaintenanceDate?: RawMaintenanceDate | null;
+  lastMaintenanceDate?: {
+    minor?: string | null;
+    major?: string | null;
+  } | null;
+  nextMaintenanceDate?: {
+    minor?: string | null;
+    major?: string | null;
+  } | null;
   location?: string | null;
   notes?: string | null;
   relatedItemIds?: string[] | null;
@@ -84,6 +84,12 @@ const DEFAULT_TEMPLATE_FILES: TemplateFileConfig[] = [
     description: "Professional maintenance schedules for office spaces, retail, and commercial properties.",
     fileName: "maintenance-template-commercial.json",
   },
+  {
+    type: "rental",
+    name: "Rental Property",
+    description: "Maintenance planning for landlord-managed rental properties and tenant turnover readiness.",
+    fileName: "maintenance-template-rental.json",
+  },
 ];
 
 function toDateOrNull(value: string | null | undefined): Date | null {
@@ -93,20 +99,6 @@ function toDateOrNull(value: string | null | undefined): Date | null {
   }
 
   return new Date(`${normalized}T00:00:00.000Z`);
-}
-
-function toScheduleString(raw: RawMaintenanceDate | null | undefined): string | null {
-  if (!raw) {
-    return null;
-  }
-
-  const minor = normalizeDateOnly(raw.minor ?? null);
-  const major = normalizeDateOnly(raw.major ?? null);
-  if (!minor && !major) {
-    return null;
-  }
-
-  return serializeMaintenanceSchedule({ minor, major });
 }
 
 function toTaskSeed(item: RawTemplateItem, category: string): DefaultTemplateTaskSeed | null {
@@ -123,8 +115,9 @@ function toTaskSeed(item: RawTemplateItem, category: string): DefaultTemplateTas
     category,
     priority: DEFAULT_PRIORITY,
     status: DEFAULT_STATUS,
-    lastMaintenanceDate: toScheduleString(item.lastMaintenanceDate),
-    nextMaintenanceDate: toScheduleString(item.nextMaintenanceDate),
+    // Keep maintenance history empty for new users so they can enter real data.
+    lastMaintenanceDate: null,
+    nextMaintenanceDate: null,
     isTemplate: true,
     isAiGenerated: false,
     notes: item.notes?.trim() || null,
@@ -195,6 +188,7 @@ export function summarizeDefaultTemplateSeeds(seeds: DefaultTemplateSeed[]): Rec
     townhouse: 0,
     condo: 0,
     commercial: 0,
+    rental: 0,
   } as Record<DefaultTemplateType, number>;
 
   for (const seed of seeds) {
