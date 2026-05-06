@@ -281,6 +281,8 @@ describe('disconnectGoogleCalendar', () => {
       calendarDeleteRequested: true,
       calendarDeleted: true,
       calendarDeleteMessage: null,
+      eventsDeleted: 0,
+      eventsFailed: 0,
     });
   });
 

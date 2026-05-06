@@ -1,5 +1,5 @@
-import { loadDefaultTemplateSeeds } from "./defaultTemplateLoader.js";
-import type { IStorage } from "../storage.js";
+import { loadDefaultTemplateSeeds } from "./defaultTemplateLoader";
+import type { IStorage } from "../storage";
 
 /**
  * Creates the four default property templates and all their associated maintenance
